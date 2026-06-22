@@ -2,14 +2,14 @@ import express from 'express';
 import fs from 'fs';
 
 // ====== 【ここにAPIキーやトークンを直接書き込んでください】 ======
-const CLIENT_ID = "ここにTwitchのCLIENT_IDを書く";
-const CLIENT_SECRET = "ここにTwitchのCLIENT_SECRETを書く";
+const CLIENT_ID = "kz8uvhyodutzolak71mb0ykrfqd1c2";
+const CLIENT_SECRET = "esp1w19jvrqug8fb9wgm8gvg76tvup";
 
-const LINE_ACCESS_TOKEN = "ここにLINEのACCESS_TOKENを書く";
-const LINE_USER_ID = "ここにLINEのUSER_IDを書く";
+const LINE_ACCESS_TOKEN = "HsDoSA+O/W4Z7s2LmpUSg4m/VO5ok0o/MRBnzPR+Bl183Kc7Lj8tKqyoEjQ4AyMpWhRdJ8ae7+gASbDzCVL/L8wUKVK4sikTTsNUgCJ8YPrS+1beXYsbZm5MZqW1MQzZ0C6wBTTK0bTnXx7yWKniQgdB04t89/1O/w1cDnyilFU=";
+const LINE_USER_ID = "U273b8c7b36b2b330adda5b2458a8f446";
 
-const CHATWORK_API_TOKEN = "ここにChatworkのAPI_TOKENを書く";
-const CHATWORK_ROOM_ID = "ここにChatworkのROOM_IDを書く";
+const CHATWORK_API_TOKEN = "47f3a071fe49e7259100d70071c986b7";
+const CHATWORK_ROOM_ID = "440046837";
 
 const YOUTUBE_API_KEY = "ここにYouTubeのAPI_KEYを書く";
 // ============================================================
