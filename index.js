@@ -11,6 +11,7 @@ const LINE_USER_ID = "U273b8c7b36b2b330adda5b2458a8f446";
 const CHATWORK_API_TOKEN = "47f3a071fe49e7259100d70071c986b7";
 const CHATWORK_ROOM_ID = "440046837";
 
+// YouTube APIキーが未取得（初期値のまま）ならあとでスキップするようにします
 const YOUTUBE_API_KEY = "ここにYouTubeのAPI_KEYを書く";
 // ============================================================
 
@@ -92,10 +93,16 @@ async function sendChatworkMessage(message) {
   }
 }
 
-// ---------------- YouTube (既存機能維持 + 多重通知防止) ----------------
+// ---------------- YouTube (既存機能維持 + 空欄スキップ機能追加) ----------------
 
 async function checkYouTube(cache) {
-  let ytStatus = "";
+  // もしAPIキーが書き換えられていなかったらエラーを出さずに安全にスキップ
+  if (YOUTUBE_API_KEY === "ここにYouTubeのAPI_KEYを書く" || !YOUTUBE_API_KEY) {
+    console.log("YouTube APIキーが設定されていないためスキップします");
+    currentStatusText += "\n[YouTube] ⚠️APIキー未設定のためチェックをスキップしました";
+    return;
+  }
+
   const res = await fetch(
     `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${UPLOADS_PLAYLIST_ID}&maxResults=1&key=${YOUTUBE_API_KEY}`
   );
@@ -111,12 +118,14 @@ async function checkYouTube(cache) {
   const video = data.items[0];
   const videoId = video.snippet.resourceId.videoId;
 
-  // すでに通知済みの動画IDなら処理をスキップ
+  // 【テスト用モード】YouTubeも毎回通知させたい場合はここをコメントアウト
+  /*
   if (cache.lastVideoId === videoId) {
     console.log("YouTube: 既に通知済みの最新動画です");
     currentStatusText += `\n[YouTube] 最新動画: 「${video.snippet.title}」 (通知済み)`;
     return;
   }
+  */
 
   const published = new Date(video.snippet.publishedAt);
   const now = new Date();
@@ -147,7 +156,7 @@ ${video.snippet.title}
   }
 }
 
-// ---------------- Twitch (既存機能維持 + 多重通知防止) ----------------
+// ---------------- Twitch (既存機能維持 + テスト用毎回通知モード) ----------------
 
 async function getToken(cache) {
   const tokenRes = await fetch(
@@ -178,10 +187,9 @@ async function getToken(cache) {
     console.log("🔴 現在オンライン");
     console.log("タイトル:", stream.title);
 
-    // 前回オフラインだった場合のみ通知を送る（5分ごとの連投を防止）
-    if (!cache.isLive) {
-      const message =
-`🔴 冥鳴ひまり 配信中！
+    // 【テスト用修正】cache.isLive の判定を無視して、開くたびに毎回100%通知を送るように変更
+    const message =
+`🔴 冥鳴ひまり 配信中！【テスト通知】
 
 🎮 タイトル
 ${stream.title}
@@ -191,22 +199,16 @@ ${stream.viewer_count}人
 
 🔗 https://www.twitch.tv/${STREAMER}`;
 
-      await sendLineMessage(message);
-      await sendChatworkMessage(message);
-      
-      // 状態を配信中に更新
-      cache.isLive = true;
-      currentStatusText = `[Twitch] 🔴現在配信中！ (新しく通知を送信しました)\nタイトル: ${stream.title}`;
-    } else {
-      console.log("既に配信中通知を送信済みです");
-      currentStatusText = `[Twitch] 🔴現在配信中！ (通知は送信済みです)\nタイトル: ${stream.title}`;
-    }
+    await sendLineMessage(message);
+    await sendChatworkMessage(message);
+    
+    cache.isLive = true;
+    currentStatusText = `[Twitch] 🔴現在配信中！ (テストモード：開くたびに毎回通知を送ります)\nタイトル: ${stream.title}`;
 
   } else {
     console.log("⚫ 現在オフライン");
-    // オフラインになったらフラグを戻す
     cache.isLive = false;
-    currentStatusText = "[Twitch] ⚫現在オフラインです";
+    currentStatusText = "[Twitch] ⚫現在オフラインです (配信が始まれば開くたびに通知がきます)";
   }
 }
 
@@ -226,7 +228,7 @@ async function main() {
 // トップページ（URLそのまま）にアクセスされたら自動チェックして「今何中」を表示する
 app.get('/', async (req, res) => {
   const nowStr = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
-  console.log(`[${nowStr}] 定期チェックアクセスを受信`);
+  console.log(`[${nowStr}] 定期チェックアクセスを受信（テストモード）`);
   
   try {
     currentStatusText = ""; // ステータス文字をリセット
@@ -235,21 +237,20 @@ app.get('/', async (req, res) => {
     // ブラウザの画面に分かりやすく状態を表示
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.status(200).send(
-`【Bot 動作チェックログ】
+`【Bot 動作チェックログ ★テストモード中★】
 実行日時: ${nowStr}
 
 現在のステータス:
 --------------------------------------------
 ${currentStatusText}
 --------------------------------------------
-チェックが正常に完了しました。`
+テストチェック完了。オンラインなら通知が飛んでいるはずです！`
     );
   } catch (error) {
     console.error("エラー発生:", error);
     res.status(500).send(`エラーが発生しました:\n${error.message}`);
   }
-}
-);
+});
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
