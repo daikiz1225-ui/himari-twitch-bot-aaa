@@ -21,6 +21,9 @@ const CACHE_FILE = "./.status_cache";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 画面表示用のステータス文を一時保持する変数
+let currentStatusText = "未チェック";
+
 // キャッシュを読み込む関数（多重通知防止用）
 function loadCache() {
   if (fs.existsSync(CACHE_FILE)) {
@@ -92,6 +95,7 @@ async function sendChatworkMessage(message) {
 // ---------------- YouTube (既存機能維持 + 多重通知防止) ----------------
 
 async function checkYouTube(cache) {
+  let ytStatus = "";
   const res = await fetch(
     `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${UPLOADS_PLAYLIST_ID}&maxResults=1&key=${YOUTUBE_API_KEY}`
   );
@@ -100,6 +104,7 @@ async function checkYouTube(cache) {
 
   if (!data.items || data.items.length === 0) {
     console.log("YouTube動画なし");
+    currentStatusText += "\n[YouTube] 最新動画が見つかりませんでした。";
     return;
   }
 
@@ -109,6 +114,7 @@ async function checkYouTube(cache) {
   // すでに通知済みの動画IDなら処理をスキップ
   if (cache.lastVideoId === videoId) {
     console.log("YouTube: 既に通知済みの最新動画です");
+    currentStatusText += `\n[YouTube] 最新動画: 「${video.snippet.title}」 (通知済み)`;
     return;
   }
 
@@ -135,6 +141,9 @@ ${video.snippet.title}
     
     // 通知した動画IDを記憶
     cache.lastVideoId = videoId;
+    currentStatusText += `\n[YouTube] 新着動画を検知・通知しました！: 「${video.snippet.title}」`;
+  } else {
+    currentStatusText += `\n[YouTube] 最新動画: 「${video.snippet.title}」 (10分以上前の投稿のため通知対象外)`;
   }
 }
 
@@ -169,7 +178,7 @@ async function getToken(cache) {
     console.log("🔴 現在オンライン");
     console.log("タイトル:", stream.title);
 
-    // 【重要】前回オフラインだった場合のみ通知を送る（5分ごとの連投を防止）
+    // 前回オフラインだった場合のみ通知を送る（5分ごとの連投を防止）
     if (!cache.isLive) {
       const message =
 `🔴 冥鳴ひまり 配信中！
@@ -187,14 +196,17 @@ ${stream.viewer_count}人
       
       // 状態を配信中に更新
       cache.isLive = true;
+      currentStatusText = `[Twitch] 🔴現在配信中！ (新しく通知を送信しました)\nタイトル: ${stream.title}`;
     } else {
       console.log("既に配信中通知を送信済みです");
+      currentStatusText = `[Twitch] 🔴現在配信中！ (通知は送信済みです)\nタイトル: ${stream.title}`;
     }
 
   } else {
     console.log("⚫ 現在オフライン");
     // オフラインになったらフラグを戻す
     cache.isLive = false;
+    currentStatusText = "[Twitch] ⚫現在オフラインです";
   }
 }
 
@@ -211,22 +223,33 @@ async function main() {
 
 // ---------------- Webサーバー設定 ----------------
 
-// cron-job.orgからのアクセスを受けるルート
-app.get('/check', async (req, res) => {
-  console.log(`[${new Date().toISOString()}] 定期チェックアクセスを受信`);
+// トップページ（URLそのまま）にアクセスされたら自動チェックして「今何中」を表示する
+app.get('/', async (req, res) => {
+  const nowStr = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
+  console.log(`[${nowStr}] 定期チェックアクセスを受信`);
+  
   try {
+    currentStatusText = ""; // ステータス文字をリセット
     await main();
-    res.status(200).send("チェック完了");
+    
+    // ブラウザの画面に分かりやすく状態を表示
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.status(200).send(
+`【Bot 動作チェックログ】
+実行日時: ${nowStr}
+
+現在のステータス:
+--------------------------------------------
+${currentStatusText}
+--------------------------------------------
+チェックが正常に完了しました。`
+    );
   } catch (error) {
     console.error("エラー発生:", error);
-    res.status(500).send("エラーが発生しました");
+    res.status(500).send(`エラーが発生しました:\n${error.message}`);
   }
-});
-
-// サーバー起動完了用のルート（疎通確認用）
-app.get('/', (req, res) => {
-  res.send("Botは正常に起動しています");
-});
+}
+);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
